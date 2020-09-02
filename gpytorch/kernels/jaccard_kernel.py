@@ -5,18 +5,18 @@ import warnings
 import torch
 
 from ..constraints import Positive
-from ..lazy import MatmulLazyTensor, RootLazyTensor
+from ..lazy import NonLazyTensor, MatmulLazyTensor, ConstantMulLazyTensor, RootLazyTensor
 from .kernel import Kernel
 
 
 class JaccardKernel(Kernel):
     r"""
     Computes a covariance matrix based on the Jaccard kernel
-    between inputs :math:`\mathbf{x_1}` and :math:`\mathbf{x_2}`:
+    between binary inputs :math:`\mathbf{x_1}` and :math:`\mathbf{x_2}`:
 
     .. math::
         \begin{equation*}
-            k_\text{Linear}(\mathbf{x_1}, \mathbf{x_2}) = v\mathbf{x_1}^\top
+            k_\text{Jaccard}(\mathbf{x_1}, \mathbf{x_2}) = v\mathbf{x_1}^\top
             \mathbf{x_2}.
         \end{equation*}
 
@@ -45,7 +45,7 @@ class JaccardKernel(Kernel):
     """
 
     def __init__(self, num_dimensions=None, offset_prior=None, variance_prior=None, variance_constraint=None, **kwargs):
-        super(LinearKernel, self).__init__(**kwargs)
+        super(JaccardKernel, self).__init__(**kwargs)
         if variance_constraint is None:
             variance_constraint = Positive()
 
@@ -85,14 +85,14 @@ class JaccardKernel(Kernel):
         if x1.size() == x2.size() and torch.equal(x1, x2):
             # Use RootLazyTensor when x1 == x2 for efficiency when composing
             # with other kernels
-            prod = RootLazyTensor(x1_)
+            return ConstantMulLazyTensor(NonLazyTensor(torch.ones(x1_.size()[0], x1.size()[0])), 3)
 
         else:
             x2_ = x2 * self.variance.sqrt()
             if last_dim_is_batch:
                 x2_ = x2_.transpose(-1, -2).unsqueeze(-1)
 
-            prod = MatmulLazyTensor(x1_, x2_.transpose(-2, -1))
+            numerator = MatmulLazyTensor(x1_, x2_.transpose(-2, -1))
 
         if diag:
             return prod.diag()
